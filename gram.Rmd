@@ -1,0 +1,165 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+- re inverser lordre de normalisation : on normalise sur les données d'entraînement, on récupère les coefficients de normalisation d'apprentissge quon applique sur la base de test 
+
+- faire une boucle de taille 100/1000 pour optimiser la variable "nb" avec le vecteur sonde en affichant la fonction de répartition de la variable "rang de sortie du vecteur sonde" ; placer le vecteur sonde à la place 1681 ; vecteur sonde suit une loi normale 
+
+- faire une boucle comme la premiere sans vecteur sonde pour avoir une liste de descripteurs 
+
+- appliquer des classifieurs (regression logistiques avec lambda=0 ou autre)
+
+```{r}
+library(Matrix)
+```
+
+```{r}
+data_davd <- read.csv("DAVD_nom.csv" , sep=";",header = TRUE)
+```
+
+```{r}
+Name_desc <- read_excel("Name_desc.xlsx")
+```
+
+```{r}
+y_davd <- rep(NA, nrow(data_davd))
+
+for (i in 1:nrow(data_davd)){
+    if (i < 28) {
+        y_davd[i] <- -1
+    }
+    else {
+        y_davd[i] <- 1
+    }
+}
+y_davd <-t(t(y_davd))
+```
+
+
+```{r}
+for(i in 1:1680){
+  colnames(data_davd)[i] <- paste(Name_desc[1,i],Name_desc[2,i],Name_desc[3,i],Name_desc[4,i],sep = "_")
+}
+```
+
+```{r}
+#Construction de la base
+gram <- function(Xtrain, Ytrain,nb) {
+  
+  M <- ncol(Xtrain)
+  N <- nrow(Xtrain)
+  
+  #index est le vecteur contenant le classement des regresseurs du meilleur au moins bon
+  index <- seq(1,M)
+  A <- diag(M)
+  W <- matrix(0,N,M)
+  G <- matrix(0,M,1)
+  
+  #normalisation des variables d'entrée et de sortie 
+  for (i in 1:1680){
+      Xtrain[,i] = (Xtrain[,i] - mean(Xtrain[,i]))/norm(Xtrain[,i],"2")
+  }
+  
+  Ytrain = (Ytrain - mean(Ytrain))/norm(Ytrain,"2")
+
+  for (k in 1:nb){
+    #Calcul des cosinus
+    cosinus2 <- rep(NA,1680)
+    for (i in k:M){
+      cosinus2[i] =(t(Xtrain[,i])%*%Ytrain)^2/(t(Xtrain[,i])%*%Xtrain[,i]%*%t(Ytrain)%*%Ytrain)
+    }
+  
+    #sélection de la meilleure variable et rangement du vecteur à la place k 
+    indmax <- which.max(cosinus2)
+    Xtrain[,c(k,indmax)]=Xtrain[,c(indmax,k)]
+    #Xtrain_2[,c(k,indmax)]=Xtrain_2[,c(indmax,k)]
+    index[c(k,indmax)]=index[c(indmax,k)]
+    W[,k] <- Xtrain[,k]
+    Pk <- matrix(NA,N,M)
+    
+  
+    #orthogonalisation
+    for (j in (k+1):M) {
+      #matrice diagonale suprieure ? 
+      A[k,j] <- t(W[,k])%*%Xtrain[,j]/(t(W[,k])%*%W[,k])
+      Pk[,j] = Xtrain[,j] - A[k,j]%*%W[,k]
+      Pk[,j] = Pk[,j]/norm(Pk[,j],"2")
+  
+    }
+  
+    Xtrain = Pk
+    G[k,1] = t(W[,k])%*%(Ytrain)/(t(W[,k])%*%W[,k])
+    Ytrain = Ytrain - G[k,1] * W[,k]
+  }
+  
+  return(index)
+}
+```
+
+```{r}
+B = 20
+nsonde = ncol(data_davd)+1
+RangSonde = rep(0,nsonde)
+
+for (i in 1:B){
+  
+  tr <- sample(1:nrow(data_davd),34)
+  Xtrain <- data_davd[tr,]
+  Ytrain <- t(t(y_davd[tr]))
+  Xtest <- data_davd[-tr,]
+  Ytest <- t(t(y_davd[-tr]))
+  
+  vect_sonde = rnorm(length(Ytrain))
+  
+  data = cbind(Xtrain, vect_sonde)
+  
+  index = gram(data,Ytrain,43)
+  #retourne la place du vecteur sonde "1681" dans le vecteur index 
+  ouSonde = which(index==nsonde)
+  RangSonde[ouSonde] = RangSonde[ouSonde]+1
+}
+
+F = cumsum(RangSonde)/B
+```
+
+```{r}
+plot(F)
+```
+
+```{r}
+var_l_1se <- index[1:43]
+c <- colnames(data_davd)[var_l_1se]
+indices_1se <- which(colnames(data_davd) %in% c)
+
+data_gram<- data_davd[,indices_1se]
+```
+
+
+```{r}
+save(data_gram,file="data_gram.RData")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
